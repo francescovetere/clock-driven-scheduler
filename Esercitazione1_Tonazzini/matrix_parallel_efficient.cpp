@@ -35,10 +35,14 @@ void mult(size_t row, size_t column, const matrix & M1, const matrix & M2, matri
 
 void parall_mult(size_t i, size_t block_size, const matrix & A, const matrix & B, matrix & C)
 {
-	for(i= (i*block_size); i<((i+1)*block_size); ++i)
+	size_t num_row = ((i+1)*block_size);
+	
+	//Controllo offset ultimo thread
+	if((A.size()-num_row) < block_size)
+		num_row += (A.size()%block_size);
+
+	for(i= (i*block_size); i<num_row; ++i)
 	{
-		if(i > A.size())
-			break;
 		for (size_t j = 0; j < A.size(); ++j)
 			mult(i, j, A, B, C);
 	}
