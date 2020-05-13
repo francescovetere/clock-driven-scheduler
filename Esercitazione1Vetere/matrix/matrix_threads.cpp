@@ -1,4 +1,4 @@
-/* matrix_serial.c */
+/* matrix_threads.c */
 
 #include <vector> 
 #include <iostream>

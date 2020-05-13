@@ -2,11 +2,11 @@ CC = g++
 CFLAGS = -O3 -Wall -pthread -std=c++11
 LFLAGS = -pthread
 
-OUT = matrix_serial matrix_threads matrix_threads_hardware_concurrency
+OUT = simple_wrong simple_solved
 
 all : $(OUT)
 
-matrix_%: matrix_%.o
+simple_%: simple_%.o
 	$(CC) -o $@ $< $(LFLAGS)
 
 %.o: %.cpp
@@ -14,3 +14,6 @@ matrix_%: matrix_%.o
 
 clean :
 	rm -f *.o *~ $(OUT)
+
+
+
