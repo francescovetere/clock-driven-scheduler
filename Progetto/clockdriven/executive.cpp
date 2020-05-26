@@ -67,7 +67,7 @@ void Executive::run() {
 	
 
 	
-	/* --- Creiamo il thread per l'executive ***/
+	/* --- Creiamo il thread per l'executive ---*/
 	std::thread exec_thread(&Executive::exec_function, this);
 
 	try {
@@ -105,14 +105,18 @@ void Executive::task_function(Executive::task_data & task)
 		{	// Creiamo un blocco per sfruttare l'idioma RAII
 			std::unique_lock<std::mutex> lock(task.mutex);
 
+			std::cout << "Lock acquired task " << std::endl;
 			task.state = task_state::IDLE;
 
+			
 			// Il task attende la ricezione di una notify_one per essere posto in esecuzione
 			while(task.state != task_state::PENDING)
 				task.condition.wait(lock);
 
 			// Una volta giunto a questo punto, il task puo' essere posto in esecuzione
 			task.state = task_state::RUNNING;
+
+			//std::cout << "Task running " << std::endl;
 
 		}
 		
@@ -122,18 +126,22 @@ void Executive::task_function(Executive::task_data & task)
 }
 
 void Executive::exec_function() {
+
 	/* Frame corrente */
 	unsigned int frame_id = 0;
 	unsigned int hyperperiod_id = 0;
+
 	/* ... */
 
 	while (true) {
-		
+		auto start = std::chrono::high_resolution_clock::now();
+
 		/* Istante assoluto che indica il prossimo risveglio dell'executive */
 		auto wakeup = std::chrono::steady_clock::now(); 
 
 		/* Calcolo il nuovo istante assoluto di risveglio dell'executive */
 		wakeup += std::chrono::milliseconds((unit_time) * (frame_length));
+
 
 		std::cout << "\n === FRAME " << frame_id << " ===" << std::endl;
 
@@ -144,32 +152,38 @@ void Executive::exec_function() {
 		 * ??? Non sempre funziona...
 		 **/ 
 
-		for(unsigned int i = 0; i < (frames[frame_id]).size(); ++i)
-		{
-			size_t task_id = (frames[frame_id])[i];
-			{
-				std::unique_lock<std::mutex> lock(p_tasks[task_id].mutex);
+		// if(hyperperiod_id != 0 && frame_id != 0) {
+		// 	for(unsigned int i = 0; i < (frames[frame_id]).size(); ++i)
+		// 	{
+		// 		size_t task_id = (frames[frame_id])[i];
+		// 		{
+		// 			std::unique_lock<std::mutex> lock(p_tasks[task_id].mutex);
 
-				if(p_tasks[task_id].state != task_state::IDLE) {
-					std::cerr << "*** Task " << task_id << ": deadline miss" << std::endl;
-					deadlines[task_id] = true;
-				}
-			}
-		}
+		// 			if(p_tasks[task_id].state != task_state::IDLE) {
+		// 				std::cerr << "*** Task " << task_id << ": deadline miss" << std::endl;
+		// 				deadlines[task_id] = true;
+		// 			}
+		// 		}
+		// 	}
+		// }
+
+		// for(unsigned int i = 0; i < p_tasks.size(); ++i) std::cout << "Task " << i << ": " << deadlines[i] << std::endl;
 
 		/* Rilascio dei task periodici del frame corrente e aperiodico (se necessario)... */
 		for(unsigned int i = 0; i < (frames[frame_id]).size(); ++i)
 		{		
 				size_t task_id = (frames[frame_id])[i];
+				std::cout << "Task id: " << task_id << std::endl;
 				
 				rt::priority prio_periodic(rt::priority::rt_max - i - 1);
 
 				if(deadlines[task_id]) {
 					deadlines[task_id] = false; // reset della deadline (ovvero permetto successive esecuzioni)
-					std::cerr << "Task " << i <<": not executed because of a previous deadline miss" << std::endl;
+					std::cerr << "Task " << task_id <<": not executed because of a previous deadline miss" << std::endl;
 				}
 
 				else {
+
 					{
 						std::unique_lock<std::mutex> lock(p_tasks[task_id].mutex);
 						p_tasks[task_id].state = task_state::PENDING;
@@ -183,6 +197,7 @@ void Executive::exec_function() {
 						p_tasks[task_id].thread.detach();
 					}
 					
+					std::cout << "Notifying task" << std::endl;
 					p_tasks[task_id].condition.notify_one();
 			 	}
 	  	}
@@ -191,7 +206,8 @@ void Executive::exec_function() {
 		/* Passo al prossimo frame */
 		{
 			std::unique_lock<std::mutex> lock(exec_mutex);
-			if (++frame_id == frames.size()) {
+			++frame_id;
+			if (frame_id == frames.size()) {
 				frame_id = 0;
 				++hyperperiod_id;
 			}
@@ -199,6 +215,11 @@ void Executive::exec_function() {
 
 		/* Attesa assoluta, tale da non pregiudicare la precisione, fino al prossimo inizio frame */
 		std::this_thread::sleep_until(wakeup);
+
+		auto stop = std::chrono::high_resolution_clock::now();
+
+		std::chrono::duration<double, std::milli> elapsed(stop - start);
+		std::cout << "Elapsed [ms]: " << elapsed.count() << std::endl;
 	}
 	
 }
