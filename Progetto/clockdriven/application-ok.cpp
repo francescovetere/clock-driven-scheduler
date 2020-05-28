@@ -21,6 +21,8 @@ void task1()
 	std::cout << "Task 1: executing" << std::endl;
 	busy_wait(wcet[1]*fact);
 	std::cout << "Task 1: completed\n" << std::endl;
+
+
 }
 
 void task2()
@@ -35,6 +37,12 @@ void task3()
 	std::cout << "Task 3: executing" << std::endl;
 	busy_wait(wcet[3]*fact);
 	std::cout << "Task 3: completed\n" << std::endl;
+
+
+	/* Richiede all'exe di eseguire un aperiodico, che devo avere settato nel main
+	   verrà eseguito a partire dal frame successivo 
+	*/
+	// exec.ap_task_request(); 
 }
 
 void task4()
@@ -56,11 +64,11 @@ int main()
 	busy_wait_init();
 
 	// Associo ad ogni id dei task, una rispettiva funzione
-	exec.set_periodic_task(0, task0, wcet[0]*fact); // tau_1
-	exec.set_periodic_task(1, task1, wcet[1]*fact); // tau_2
-	exec.set_periodic_task(2, task2, wcet[2]*fact); // tau_3,1
-	exec.set_periodic_task(3, task3, wcet[3]*fact); // tau_3,2
-	exec.set_periodic_task(4, task4, wcet[4]*fact); // tau_3,3
+	exec.set_periodic_task(0, task0, wcet[0]); // tau_1
+	exec.set_periodic_task(1, task1, wcet[1]); // tau_2
+	exec.set_periodic_task(2, task2, wcet[2]); // tau_3,1
+	exec.set_periodic_task(3, task3, wcet[3]); // tau_3,2
+	exec.set_periodic_task(4, task4, wcet[4]); // tau_3,3
 	/* ... */
 	
 	exec.set_aperiodic_task(ap_task, 2);

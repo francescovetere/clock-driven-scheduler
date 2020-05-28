@@ -54,7 +54,7 @@ void Executive::run() {
 		
 		/* ... */
 		
-		// Assegnamo ad ogni thread periodico il valore di affinity precedentemente dichiarato
+		// Assegniamo ad ogni thread periodico il valore di affinity precedentemente dichiarato
 		rt::set_affinity(p_tasks[id].thread, affinity);
 	}
 
@@ -71,7 +71,7 @@ void Executive::run() {
 	std::thread exec_thread(&Executive::exec_function, this);
 
 	try {
-		// Assegnamo all'executive la priorita' precedentemente dichiarata
+		// Assegniamo all'executive la priorita' precedentemente dichiarata
 		rt::set_priority(exec_thread, prio_exec);
 	}
 	catch (rt::permission_error & e) {
