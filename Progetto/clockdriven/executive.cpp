@@ -78,9 +78,6 @@ void Executive::run() {
 		std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
 		exec_thread.detach();
 	}
-
-	// Assegniamo all'executive l'affinity precedentemente dichiarata
-	rt::set_affinity(exec_thread, affinity);
 	
 
 	/* ... */
