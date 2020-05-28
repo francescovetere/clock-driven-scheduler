@@ -81,6 +81,11 @@ class Executive
 		   Inizializzo il vettore con n valori false, dove n = p_tasks.size() */
 		std::vector<bool> deadlines;
 
+		/* Mantengo un vettore di interi, in cui slack_times[i] = x > 0 indica che nel frame i-esimo ci sono x unita' di slack disponibili
+		 * (slack_times[i] = 0 ==> No slack time disponibile)
+		 */
+		std::vector<unsigned int> slack_times;
+
 		static void task_function(task_data & task);
 		
 		void exec_function();

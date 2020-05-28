@@ -34,6 +34,16 @@ void Executive::add_frame(std::vector<size_t> frame)
 	frames.push_back(frame);
 
 	/* ... */
+
+	/* Calcolo lo slack time per questo frame, e lo inserisco nel vettore slack_times */
+	unsigned int tot_wcet = 0; // wcet totale dei task periodici in questo frame
+
+	for (unsigned int i = 0; i < frame.size(); ++i) {
+		tot_wcet += p_tasks[frame[i]].wcet;
+	}
+
+	/* Lo slack time per questo frame sara' dato dalla differenza tra la lunghezza del frame e il wcet totale */
+  	slack_times.push_back(frame_length - tot_wcet);
 }
 
 void Executive::run() {
@@ -44,6 +54,8 @@ void Executive::run() {
 	// L'executive deve essere gestito da un thread a priorita' massima
 	rt::priority prio_exec(rt::priority::rt_max);
 
+	// Il task aperiodico deve essere gestito da un thread a priorita' minima
+	rt::priority prio_aperiodic(rt::priority::rt_min);
 
 	/* --- Creiamo i thread per i task periodici --- */
 	for (size_t id = 0; id < p_tasks.size(); ++id)
@@ -76,7 +88,16 @@ void Executive::run() {
 	assert(ap_task.function); // Fallisce se set_aperiodic_task() non e' stato invocato
 	
 	ap_task.thread = std::thread(&Executive::task_function, std::ref(ap_task));
+	
 	rt::set_affinity(ap_task.thread, affinity);
+
+	try {
+		rt::set_priority(ap_task.thread, prio_aperiodic);
+	}
+	catch (rt::permission_error & e) {
+		std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
+		ap_task.thread.detach();
+	}
 
 	
 	/* --- Creiamo il thread per l'executive ---*/
@@ -142,6 +163,8 @@ void Executive::exec_function() {
 	unsigned int frame_id = 0;
 	unsigned int hyperperiod_id = 0;
 
+	for(unsigned int i = 0; i < slack_times.size(); ++i) std::cout << "slack[" << i << "] = " << slack_times[i] << std::endl;
+
 	/* ... */
 
 	while (true) {
@@ -183,6 +206,7 @@ void Executive::exec_function() {
 
 
 		/* Rilascio dei task periodici del frame corrente e aperiodico (se necessario)... */
+
 		for(unsigned int i = 0; i < (frames[frame_id]).size(); ++i)
 		{		
 				size_t task_id = (frames[frame_id])[i];
