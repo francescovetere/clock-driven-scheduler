@@ -47,7 +47,6 @@ class Executive
 
 		/* Usiamo una enum class piuttosto che una enum semplice */
 		enum class task_state {PENDING, IDLE, RUNNING};
-		std::mutex exec_mutex;
 		
 		struct task_data
 		{

@@ -105,7 +105,7 @@ void Executive::task_function(Executive::task_data & task)
 		{	// Creiamo un blocco per sfruttare l'idioma RAII
 			std::unique_lock<std::mutex> lock(task.mutex);
 
-			std::cout << "Lock acquired task " << std::endl;
+			// std::cout << "Lock acquired task " << std::endl;
 			task.state = task_state::IDLE;
 
 			
@@ -142,30 +142,28 @@ void Executive::exec_function() {
 		/* Calcolo il nuovo istante assoluto di risveglio dell'executive */
 		wakeup += std::chrono::milliseconds((unit_time) * (frame_length));
 
-
-		std::cout << "\n === FRAME " << frame_id << " ===" << std::endl;
+		std::cout << "\n === HYPERPERIOD: " << hyperperiod_id << " ===\n === FRAME: " << frame_id << " ===" << std::endl;
 
 
 		/* Controllo delle deadline... */
-		/**
-		 * TODO - Evitare il controllo sul primo frame del primo iperperiodo
-		 * ??? Non sempre funziona...
-		 **/ 
 
-		// if(hyperperiod_id != 0 && frame_id != 0) {
-		// 	for(unsigned int i = 0; i < (frames[frame_id]).size(); ++i)
-		// 	{
-		// 		size_t task_id = (frames[frame_id])[i];
-		// 		{
-		// 			std::unique_lock<std::mutex> lock(p_tasks[task_id].mutex);
+		// Evito il controllo sul primo frame del primo iperperiodo
+		if(! (hyperperiod_id == 0 && frame_id == 0)) {
+			unsigned int previous_frame = (frame_id == 0) ? frames.size()-1 : frame_id - 1; 
+			for(unsigned int i = 0; i < (frames[previous_frame]).size(); ++i)
+			{
+				size_t task_id = (frames[previous_frame])[i];
+				std::cout << "previous tasks: " << task_id << std::endl;
+				{
+					std::unique_lock<std::mutex> lock(p_tasks[task_id].mutex);
 
-		// 			if(p_tasks[task_id].state != task_state::IDLE) {
-		// 				std::cerr << "*** Task " << task_id << ": deadline miss" << std::endl;
-		// 				deadlines[task_id] = true;
-		// 			}
-		// 		}
-		// 	}
-		// }
+					if(p_tasks[task_id].state != task_state::IDLE) {
+						std::cerr << "*** Task " << task_id << ": deadline miss" << std::endl;
+						deadlines[task_id] = true;
+					}
+				}
+			}
+		}
 
 		// for(unsigned int i = 0; i < p_tasks.size(); ++i) std::cout << "Task " << i << ": " << deadlines[i] << std::endl;
 
@@ -173,7 +171,6 @@ void Executive::exec_function() {
 		for(unsigned int i = 0; i < (frames[frame_id]).size(); ++i)
 		{		
 				size_t task_id = (frames[frame_id])[i];
-				std::cout << "Task id: " << task_id << std::endl;
 				
 				rt::priority prio_periodic(rt::priority::rt_max - i - 1);
 
@@ -197,25 +194,21 @@ void Executive::exec_function() {
 						p_tasks[task_id].thread.detach();
 					}
 					
-					std::cout << "Notifying task" << std::endl;
+					// std::cout << "Notifying task" << std::endl;
 					p_tasks[task_id].condition.notify_one();
 			 	}
 	  	}
 
 
-		/* Passo al prossimo frame */
-		{
-			std::unique_lock<std::mutex> lock(exec_mutex);
-			++frame_id;
-			if (frame_id == frames.size()) {
-				frame_id = 0;
-				++hyperperiod_id;
-			}
+		++frame_id;
+		if (frame_id == frames.size()) {
+			frame_id = 0;
+			++hyperperiod_id;
 		}
 
 		/* Attesa assoluta, tale da non pregiudicare la precisione, fino al prossimo inizio frame */
 		std::this_thread::sleep_until(wakeup);
-
+		
 		auto stop = std::chrono::high_resolution_clock::now();
 
 		std::chrono::duration<double, std::milli> elapsed(stop - start);
