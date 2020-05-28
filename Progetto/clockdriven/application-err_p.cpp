@@ -6,7 +6,7 @@
 // 5 frame, ognuno con ampiezza 4 unita' di tempo
 Executive exec(5, 4);
 
-int wcet[] = {1, 2, 1, 3, 2};
+int wcet[] = {1, 2, 1, 3, 3};
 int fact = 8;
 
 void task0() 

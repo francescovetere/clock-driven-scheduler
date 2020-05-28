@@ -56,15 +56,27 @@ void Executive::run() {
 		
 		// Assegniamo ad ogni thread periodico il valore di affinity precedentemente dichiarato
 		rt::set_affinity(p_tasks[id].thread, affinity);
-	}
 
+		/* Assegniamo inizialmente ad ogni thread la priorita' massima, in modo che settino il loro stato ad IDLE e 
+		 * si blocchino sulla wait
+		 * In questo modo, l'executive puo' successivamente partire con priorita' massima trovando i thread gia' pronti, e ne 
+		 * ri-setta le priorita' in modo dinamico in ogni frame
+		 **/
+		try {
+			rt::set_priority(p_tasks[id].thread, prio_exec);
+		}
+		catch (rt::permission_error & e) {
+			std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
+			p_tasks[id].thread.detach();
+		}
+	}
 
 
 	/* --- Creiamo il thread per il task aperiodico ---*/
 	assert(ap_task.function); // Fallisce se set_aperiodic_task() non e' stato invocato
 	
 	ap_task.thread = std::thread(&Executive::task_function, std::ref(ap_task));
-	
+	rt::set_affinity(ap_task.thread, affinity);
 
 	
 	/* --- Creiamo il thread per l'executive ---*/
@@ -78,6 +90,8 @@ void Executive::run() {
 		std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
 		exec_thread.detach();
 	}
+
+	rt::set_affinity(exec_thread, affinity);
 	
 
 	/* ... */
@@ -146,11 +160,15 @@ void Executive::exec_function() {
 
 		// Evito il controllo sul primo frame del primo iperperiodo
 		if(! (hyperperiod_id == 0 && frame_id == 0)) {
-			unsigned int previous_frame = (frame_id == 0) ? frames.size()-1 : frame_id - 1; 
+
+			unsigned int previous_frame;
+			if(frame_id == 0) previous_frame = frames.size() - 1;
+			else previous_frame = frame_id - 1; 
+
 			for(unsigned int i = 0; i < (frames[previous_frame]).size(); ++i)
 			{
 				size_t task_id = (frames[previous_frame])[i];
-				std::cout << "previous tasks: " << task_id << std::endl;
+				// std::cout << "previous tasks: " << task_id << std::endl;
 				{
 					std::unique_lock<std::mutex> lock(p_tasks[task_id].mutex);
 
@@ -162,7 +180,7 @@ void Executive::exec_function() {
 			}
 		}
 
-		// for(unsigned int i = 0; i < p_tasks.size(); ++i) std::cout << "Task " << i << ": " << deadlines[i] << std::endl;
+
 
 		/* Rilascio dei task periodici del frame corrente e aperiodico (se necessario)... */
 		for(unsigned int i = 0; i < (frames[frame_id]).size(); ++i)

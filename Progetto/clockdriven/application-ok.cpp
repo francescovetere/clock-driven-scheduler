@@ -9,6 +9,8 @@ Executive exec(5, 4);
 int wcet[] = {1, 2, 1, 3, 1};
 int fact = 8;
 
+unsigned int count = 0;
+
 void task0() 
 {
 	std::cout << "Task 0: executing" << std::endl;
@@ -35,14 +37,17 @@ void task2()
 void task3()
 {
 	std::cout << "Task 3: executing" << std::endl;
-	busy_wait(wcet[3]*fact);
+	busy_wait((wcet[3]*fact) / 2);
 	std::cout << "Task 3: completed\n" << std::endl;
 
-
-	/* Richiede all'exe di eseguire un aperiodico, che devo avere settato nel main
+	/* Richiede all'executive di eseguire un aperiodico, che devo avere settato nel main
 	   verrà eseguito a partire dal frame successivo 
 	*/
-	// exec.ap_task_request(); 
+
+	// if(++count % 4 == 0)
+		// exec.ap_task_request(); 
+
+	// busy_wait((wcet[3]*fact) / 2);
 }
 
 void task4()
