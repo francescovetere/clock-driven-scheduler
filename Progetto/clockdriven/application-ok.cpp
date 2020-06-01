@@ -7,19 +7,33 @@
 Executive exec(5, 4);
 
 int wcet[] = {1, 2, 1, 3, 1};
+int ap_task_wcet = 2;
 int fact = 8;
 
 unsigned int count = 0;
 
 void task0() 
 {
+
 	std::cout << "Task 0: executing" << std::endl;
-	busy_wait(wcet[0]*fact);
+	busy_wait((wcet[0]*fact) / 2);
 	std::cout << "Task 0: completed\n" << std::endl;
+
+	/* Richiede all'executive di eseguire un aperiodico, che devo avere settato nel main
+	   verrà eseguito a partire dal frame successivo 
+	*/
+
+	if(++count % 2 == 0)
+		exec.ap_task_request(); 
+
+	busy_wait((wcet[0]*fact) / 2);
+
+
 }
 
 void task1()
 {	
+	
 	std::cout << "Task 1: executing" << std::endl;
 	busy_wait(wcet[1]*fact);
 	std::cout << "Task 1: completed\n" << std::endl;
@@ -37,17 +51,8 @@ void task2()
 void task3()
 {
 	std::cout << "Task 3: executing" << std::endl;
-	busy_wait((wcet[3]*fact) / 2);
+	busy_wait(wcet[3]*fact);
 	std::cout << "Task 3: completed\n" << std::endl;
-
-	/* Richiede all'executive di eseguire un aperiodico, che devo avere settato nel main
-	   verrà eseguito a partire dal frame successivo 
-	*/
-
-	// if(++count % 4 == 0)
-		// exec.ap_task_request(); 
-
-	// busy_wait((wcet[3]*fact) / 2);
 }
 
 void task4()
@@ -61,7 +66,9 @@ void task4()
 
 void ap_task()
 {
-	/* Custom Code */
+	std::cout << "Aperiodic task: executing" << std::endl;
+	busy_wait(ap_task_wcet*fact);
+	std::cout << "Aperiodic task: completed" << std::endl;
 }
 
 int main()
@@ -76,7 +83,7 @@ int main()
 	exec.set_periodic_task(4, task4, wcet[4]); // tau_3,3
 	/* ... */
 	
-	exec.set_aperiodic_task(ap_task, 2);
+	exec.set_aperiodic_task(ap_task, ap_task_wcet);
 	
 	exec.add_frame({0,1,2});
 	exec.add_frame({0,3});

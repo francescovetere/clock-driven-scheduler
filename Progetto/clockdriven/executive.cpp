@@ -128,8 +128,17 @@ void Executive::run() {
 
 void Executive::ap_task_request()
 {
-	/* ... */
-}
+	std::cout << "Requested aperiodic execution, wcet = " << ap_task.wcet << std::endl;
+	
+	if(ap_task.state != task_state::IDLE) {
+		std::cout << "Deadline miss aperiodic" << std::endl;
+		return;
+	}
+	
+	ap_task.state = task_state::PENDING;
+
+	ap_task.condition.notify_one();
+}	
 
 void Executive::task_function(Executive::task_data & task)
 {
@@ -147,8 +156,6 @@ void Executive::task_function(Executive::task_data & task)
 
 			// Una volta giunto a questo punto, il task puo' essere posto in esecuzione
 			task.state = task_state::RUNNING;
-
-			//std::cout << "Task running " << std::endl;
 
 		}
 		
@@ -168,16 +175,17 @@ void Executive::exec_function() {
 	/* ... */
 
 	while (true) {
+		std::cout << "\n === HYPERPERIOD: " << hyperperiod_id << " ===\n === FRAME: " << frame_id << " ===" << std::endl;
+
 		auto start = std::chrono::high_resolution_clock::now();
 
 		/* Istante assoluto che indica il prossimo risveglio dell'executive */
 		auto wakeup = std::chrono::steady_clock::now(); 
 
+		std::this_thread::sleep_until((std::chrono::milliseconds(unit_time * slack_times[frame_id])) + wakeup);
+
 		/* Calcolo il nuovo istante assoluto di risveglio dell'executive */
 		wakeup += std::chrono::milliseconds((unit_time) * (frame_length));
-
-		std::cout << "\n === HYPERPERIOD: " << hyperperiod_id << " ===\n === FRAME: " << frame_id << " ===" << std::endl;
-
 
 		/* Controllo delle deadline... */
 
@@ -203,7 +211,21 @@ void Executive::exec_function() {
 			}
 		}
 
+		// if(ap_request) {
+		// 	ap_request = false;
 
+		// 	{
+		// 		std::unique_lock<std::mutex> lock(ap_task.mutex);
+		// 		if(ap_task.state != task_state::IDLE) {
+		// 				std::cout<<"DEADLINE MISS Task aperiodico " << std::endl;
+		// 		}
+
+		// 		else {
+		// 			ap_task.state = task_state::PENDING;
+		// 			ap_task.condition.notify_one();
+		// 		}
+		// 	}
+		// }
 
 		/* Rilascio dei task periodici del frame corrente e aperiodico (se necessario)... */
 
