@@ -63,7 +63,7 @@ class Executive
 			std::condition_variable condition;
 
 			/* Ogni task ha uno stato associato */
-			task_state state;
+			task_state state = task_state::IDLE;
 		};
 		
 		std::vector<task_data> p_tasks;
@@ -87,6 +87,9 @@ class Executive
 		std::vector<unsigned int> slack_times;
 
 		static void task_function(task_data & task);
+		
+		/* true se c'e' stata una richiesta di attivazione del task aperiodico */
+		bool ap_request;
 		
 		void exec_function();
 };

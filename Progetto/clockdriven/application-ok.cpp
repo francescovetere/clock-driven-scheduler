@@ -3,42 +3,30 @@
 #include "executive.h"
 #include "busy_wait.h"
 
-// 5 frame, ognuno con ampiezza 4 unita' di tempo
+/* Riporta la sitazione nel pdf di esempio (caso nominale) */
+
 Executive exec(5, 4);
 
 int wcet[] = {1, 2, 1, 3, 1};
 int ap_task_wcet = 2;
+
+/* Teniamo un fattore moltiplicativo minore di 10, per evitare deadline miss non volute, dovute ad overhead */
 int fact = 8;
 
 unsigned int count = 0;
 
 void task0() 
 {
-
 	std::cout << "Task 0: executing" << std::endl;
-	busy_wait((wcet[0]*fact) / 2);
+	busy_wait(wcet[0]*fact);
 	std::cout << "Task 0: completed\n" << std::endl;
-
-	/* Richiede all'executive di eseguire un aperiodico, che devo avere settato nel main
-	   verrà eseguito a partire dal frame successivo 
-	*/
-
-	if(++count % 2 == 0)
-		exec.ap_task_request(); 
-
-	busy_wait((wcet[0]*fact) / 2);
-
-
 }
 
 void task1()
 {	
-	
 	std::cout << "Task 1: executing" << std::endl;
 	busy_wait(wcet[1]*fact);
 	std::cout << "Task 1: completed\n" << std::endl;
-
-
 }
 
 void task2()
@@ -51,7 +39,15 @@ void task2()
 void task3()
 {
 	std::cout << "Task 3: executing" << std::endl;
-	busy_wait(wcet[3]*fact);
+	busy_wait((wcet[3]*fact) / 2);
+
+	/* Richiede all'executive di eseguire un aperiodico, che devo avere settato nel main
+	   verrà eseguito a partire dal frame successivo 
+	*/
+	if(++count % 2 == 0)
+		exec.ap_task_request(); 
+
+	busy_wait((wcet[3]*fact) / 2);
 	std::cout << "Task 3: completed\n" << std::endl;
 }
 

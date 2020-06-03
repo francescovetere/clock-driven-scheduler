@@ -3,11 +3,18 @@
 #include "executive.h"
 #include "busy_wait.h"
 
-// 5 frame, ognuno con ampiezza 4 unita' di tempo
+/* Riporta la sitazione nel pdf di esempio, in cui pero' il task 33 (qui avente indice 4) ha un wcet troppo elevato (2, invece che 1)
+   e dunque genera una deadline miss */
+
 Executive exec(5, 4);
 
-int wcet[] = {1, 2, 1, 3, 3};
+int wcet[] = {1, 2, 1, 3, 2};
+int ap_task_wcet = 2;
+
+/* Teniamo un fattore moltiplicativo minore di 10, per evitare deadline miss non volute, dovute ad overhead */
 int fact = 8;
+
+unsigned int count = 0;
 
 void task0() 
 {
@@ -33,7 +40,15 @@ void task2()
 void task3()
 {
 	std::cout << "Task 3: executing" << std::endl;
-	busy_wait(wcet[3]*fact);
+	busy_wait((wcet[3]*fact) / 2);
+
+	/* Richiede all'executive di eseguire un aperiodico, che devo avere settato nel main
+	   verrà eseguito a partire dal frame successivo 
+	*/
+	if(++count % 2 == 0)
+		exec.ap_task_request(); 
+
+	busy_wait((wcet[3]*fact) / 2);
 	std::cout << "Task 3: completed\n" << std::endl;
 }
 
@@ -48,7 +63,9 @@ void task4()
 
 void ap_task()
 {
-	/* Custom Code */
+	std::cout << "Aperiodic task: executing" << std::endl;
+	busy_wait(ap_task_wcet*fact);
+	std::cout << "Aperiodic task: completed" << std::endl;
 }
 
 int main()
@@ -63,7 +80,7 @@ int main()
 	exec.set_periodic_task(4, task4, wcet[4]); // tau_3,3
 	/* ... */
 	
-	exec.set_aperiodic_task(ap_task, 2);
+	exec.set_aperiodic_task(ap_task, ap_task_wcet);
 	
 	exec.add_frame({0,1,2});
 	exec.add_frame({0,3});

@@ -7,27 +7,22 @@
 #include "executive.h"
 
 Executive::Executive(size_t num_tasks, unsigned int frame_length, unsigned int unit_duration)
-	: p_tasks(num_tasks), frame_length(frame_length), unit_time(unit_duration), deadlines(p_tasks.size(), false)
-{
-
+	: p_tasks(num_tasks), frame_length(frame_length), unit_time(unit_duration), deadlines(p_tasks.size(), false), ap_request(false) {
 }
 
-void Executive::set_periodic_task(size_t task_id, std::function<void()> periodic_task, unsigned int wcet)
-{
+void Executive::set_periodic_task(size_t task_id, std::function<void()> periodic_task, unsigned int wcet) {
 	assert(task_id < p_tasks.size()); // Fallisce in caso di task_id non corretto (fuori range)
 	
 	p_tasks[task_id].function = periodic_task;
 	p_tasks[task_id].wcet = wcet;
 }
 
-void Executive::set_aperiodic_task(std::function<void()> aperiodic_task, unsigned int wcet)
-{
+void Executive::set_aperiodic_task(std::function<void()> aperiodic_task, unsigned int wcet) {
  	ap_task.function = aperiodic_task;
  	ap_task.wcet = wcet;
 }
 		
-void Executive::add_frame(std::vector<size_t> frame)
-{
+void Executive::add_frame(std::vector<size_t> frame) {
 	for (auto & id: frame)
 		assert(id < p_tasks.size()); // Fallisce in caso di task_id non corretto (fuori range)
 	
@@ -42,8 +37,13 @@ void Executive::add_frame(std::vector<size_t> frame)
 		tot_wcet += p_tasks[frame[i]].wcet;
 	}
 
+	
 	/* Lo slack time per questo frame sara' dato dalla differenza tra la lunghezza del frame e il wcet totale */
-  	slack_times.push_back(frame_length - tot_wcet);
+	unsigned int slack;
+	if(frame_length > tot_wcet) slack = frame_length - tot_wcet;
+	else slack = 0;
+
+  	slack_times.push_back(slack);
 }
 
 void Executive::run() {
@@ -68,19 +68,6 @@ void Executive::run() {
 		
 		// Assegniamo ad ogni thread periodico il valore di affinity precedentemente dichiarato
 		rt::set_affinity(p_tasks[id].thread, affinity);
-
-		/* Assegniamo inizialmente ad ogni thread la priorita' massima, in modo che settino il loro stato ad IDLE e 
-		 * si blocchino sulla wait
-		 * In questo modo, l'executive puo' successivamente partire con priorita' massima trovando i thread gia' pronti, e ne 
-		 * ri-setta le priorita' in modo dinamico in ogni frame
-		 **/
-		try {
-			rt::set_priority(p_tasks[id].thread, prio_exec);
-		}
-		catch (rt::permission_error & e) {
-			std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-			p_tasks[id].thread.detach();
-		}
 	}
 
 
@@ -126,30 +113,22 @@ void Executive::run() {
 		pt.thread.join();
 }
 
-void Executive::ap_task_request()
-{
-	std::cout << "Requested aperiodic execution, wcet = " << ap_task.wcet << std::endl;
-	
-	if(ap_task.state != task_state::IDLE) {
-		std::cout << "Deadline miss aperiodic" << std::endl;
-		return;
-	}
-	
-	ap_task.state = task_state::PENDING;
-
-	ap_task.condition.notify_one();
+void Executive::ap_task_request() {
+	ap_request = true;
 }	
 
-void Executive::task_function(Executive::task_data & task)
-{
+void Executive::task_function(Executive::task_data & task) {
 	while(true) {
-		{	// Creiamo un blocco per sfruttare l'idioma RAII
+		{	
+			// Creiamo un blocco per sfruttare l'idioma RAII
 			std::unique_lock<std::mutex> lock(task.mutex);
 
-			// std::cout << "Lock acquired task " << std::endl;
-			task.state = task_state::IDLE;
+			if(task.state != task_state::PENDING)
+				task.state = task_state::IDLE;
 
-			
+			// Serve solamente per il task aperiodico, in tutti gli altri casi non avra' effetto (overhead minimo)
+			task.condition.notify_one();
+
 			// Il task attende la ricezione di una notify_one per essere posto in esecuzione
 			while(task.state != task_state::PENDING)
 				task.condition.wait(lock);
@@ -162,6 +141,8 @@ void Executive::task_function(Executive::task_data & task)
 		// Eseguiamo quindi la funzione associata al task
 		task.function(); 
 	}
+
+
 }
 
 void Executive::exec_function() {
@@ -170,22 +151,17 @@ void Executive::exec_function() {
 	unsigned int frame_id = 0;
 	unsigned int hyperperiod_id = 0;
 
-	for(unsigned int i = 0; i < slack_times.size(); ++i) std::cout << "slack[" << i << "] = " << slack_times[i] << std::endl;
+	// for(unsigned int i = 0; i < slack_times.size(); ++i) std::cout << "slack[" << i << "] = " << slack_times[i] << std::endl;
 
 	/* ... */
+
+	/* Istante assoluto che indica il prossimo risveglio dell'executive */
+	auto wakeup = std::chrono::steady_clock::now(); 
 
 	while (true) {
 		std::cout << "\n === HYPERPERIOD: " << hyperperiod_id << " ===\n === FRAME: " << frame_id << " ===" << std::endl;
 
 		auto start = std::chrono::high_resolution_clock::now();
-
-		/* Istante assoluto che indica il prossimo risveglio dell'executive */
-		auto wakeup = std::chrono::steady_clock::now(); 
-
-		std::this_thread::sleep_until((std::chrono::milliseconds(unit_time * slack_times[frame_id])) + wakeup);
-
-		/* Calcolo il nuovo istante assoluto di risveglio dell'executive */
-		wakeup += std::chrono::milliseconds((unit_time) * (frame_length));
 
 		/* Controllo delle deadline... */
 
@@ -199,7 +175,7 @@ void Executive::exec_function() {
 			for(unsigned int i = 0; i < (frames[previous_frame]).size(); ++i)
 			{
 				size_t task_id = (frames[previous_frame])[i];
-				// std::cout << "previous tasks: " << task_id << std::endl;
+				
 				{
 					std::unique_lock<std::mutex> lock(p_tasks[task_id].mutex);
 
@@ -211,29 +187,32 @@ void Executive::exec_function() {
 			}
 		}
 
-		// if(ap_request) {
-		// 	ap_request = false;
+		/* Rilascio del task aperiodico (se necessario)... */
+		if(ap_request) {
+			ap_request = false;
 
-		// 	{
-		// 		std::unique_lock<std::mutex> lock(ap_task.mutex);
-		// 		if(ap_task.state != task_state::IDLE) {
-		// 				std::cout<<"DEADLINE MISS Task aperiodico " << std::endl;
-		// 		}
+			{
+				std::unique_lock<std::mutex> lock(ap_task.mutex);
+				if(ap_task.state != task_state::IDLE) {
+						std::cerr << "*** Aperiodic task: deadline miss " << std::endl;
+				}
 
-		// 		else {
-		// 			ap_task.state = task_state::PENDING;
-		// 			ap_task.condition.notify_one();
-		// 		}
-		// 	}
-		// }
+				else {
+					ap_task.state = task_state::PENDING;
+					ap_task.condition.notify_one();
+				}
+			}
+		}
 
-		/* Rilascio dei task periodici del frame corrente e aperiodico (se necessario)... */
-
+		
+		/* Rilascio dei task periodici del frame corrente */
 		for(unsigned int i = 0; i < (frames[frame_id]).size(); ++i)
 		{		
 				size_t task_id = (frames[frame_id])[i];
 				
-				rt::priority prio_periodic(rt::priority::rt_max - i - 1);
+				// Lascio uno slot di priorita' libero per l'eventuale aperiodico, di modo che possa assumere priorita'
+				// superiore a tutti gli altri periodici, per poter fare slack stealing
+				rt::priority prio_periodic(rt::priority::rt_max - i - 2);
 
 				if(deadlines[task_id]) {
 					deadlines[task_id] = false; // reset della deadline (ovvero permetto successive esecuzioni)
@@ -250,22 +229,52 @@ void Executive::exec_function() {
 					try {
 						rt::set_priority(p_tasks[task_id].thread, prio_periodic);
 					}
+				
 					catch (rt::permission_error & e) {
 						std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
 						p_tasks[task_id].thread.detach();
 					}
 					
-					// std::cout << "Notifying task" << std::endl;
 					p_tasks[task_id].condition.notify_one();
 			 	}
 	  	}
 
+
+		// if(slack_times[frame_id] > 0 && ap_task.state != task_state::IDLE) {
+		if(slack_times[frame_id] > 0) {
+			try {
+				rt::set_priority(ap_task.thread, rt::priority::rt_max - 1);
+			}
+				
+			catch (rt::permission_error & e) {
+				std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
+				ap_task.thread.detach();
+			}
+
+			{
+				std::unique_lock<std::mutex> lock(ap_task.mutex);
+				// Si blocca al piu' fino a che dura lo slack time, ma se riceve una notify allora si sveglia prima!
+				ap_task.condition.wait_until(lock, wakeup + (slack_times[frame_id])*(unit_time));
+			}
+
+			try {
+				rt::set_priority(ap_task.thread, rt::priority::rt_min);
+			}
+				
+			catch (rt::permission_error & e) {
+				std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
+				ap_task.thread.detach();
+			}
+		}
 
 		++frame_id;
 		if (frame_id == frames.size()) {
 			frame_id = 0;
 			++hyperperiod_id;
 		}
+
+		/* Calcolo il nuovo istante assoluto di risveglio dell'executive */
+		wakeup += std::chrono::milliseconds((unit_time) * (frame_length));
 
 		/* Attesa assoluta, tale da non pregiudicare la precisione, fino al prossimo inizio frame */
 		std::this_thread::sleep_until(wakeup);
