@@ -54,8 +54,8 @@ void Executive::run() {
 	// L'executive deve essere gestito da un thread a priorita' massima
 	rt::priority prio_exec(rt::priority::rt_max);
 
-	// Il task aperiodico deve essere gestito da un thread a priorita' minima
-	rt::priority prio_aperiodic(rt::priority::rt_min);
+	// Il task aperiodico deve essere gestito da un thread a priorita' minima (+ 1, per stare comunque davanti a eventuali task in )
+	rt::priority prio_aperiodic(rt::priority::rt_min + 1);
 
 	/* --- Creiamo i thread per i task periodici --- */
 	for (size_t id = 0; id < p_tasks.size(); ++id)
@@ -83,7 +83,8 @@ void Executive::run() {
 	}
 	catch (rt::permission_error & e) {
 		std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-		ap_task.thread.detach();
+		// ap_task.thread.detach();
+		throw;
 	}
 
 	
@@ -96,7 +97,8 @@ void Executive::run() {
 	}
 	catch (rt::permission_error & e) {
 		std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-		exec_thread.detach();
+		// exec_thread.detach();
+		throw;
 	}
 
 	rt::set_affinity(exec_thread, affinity);
@@ -182,6 +184,16 @@ void Executive::exec_function() {
 					if(p_tasks[task_id].state != task_state::IDLE) {
 						std::cerr << "*** Task " << task_id << ": deadline miss" << std::endl;
 						deadlines[task_id] = true;
+					
+						try {
+							rt::set_priority(p_tasks[task_id].thread, rt::priority::rt_min);
+						}
+					
+						catch (rt::permission_error & e) {
+							std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
+							// p_tasks[task_id].thread.detach();
+							throw;
+						}
 					}
 				}
 			}
@@ -232,7 +244,8 @@ void Executive::exec_function() {
 				
 					catch (rt::permission_error & e) {
 						std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-						p_tasks[task_id].thread.detach();
+						// p_tasks[task_id].thread.detach();
+						throw;
 					}
 					
 					p_tasks[task_id].condition.notify_one();
@@ -248,11 +261,13 @@ void Executive::exec_function() {
 				
 			catch (rt::permission_error & e) {
 				std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-				ap_task.thread.detach();
+				// ap_task.thread.detach();
+				throw;
 			}
 
 			{
 				std::unique_lock<std::mutex> lock(ap_task.mutex);
+				
 				// Si blocca al piu' fino a che dura lo slack time, ma se riceve una notify allora si sveglia prima!
 				ap_task.condition.wait_until(lock, wakeup + (slack_times[frame_id])*(unit_time));
 			}
@@ -263,7 +278,8 @@ void Executive::exec_function() {
 				
 			catch (rt::permission_error & e) {
 				std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-				ap_task.thread.detach();
+				// ap_task.thread.detach();
+				throw;
 			}
 		}
 
