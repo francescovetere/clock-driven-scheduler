@@ -1,3 +1,7 @@
+/* Vetere Francesco (matricola 313336)
+   Tonazzini Lorenzo (matricola 314498)
+*/
+
 #ifndef EXECUTIVE_H
 #define EXECUTIVE_H
 
@@ -45,9 +49,10 @@ class Executive
 
 	private:
 
-		/* Usiamo una enum class piuttosto che una enum semplice */
+		/* Usiamo una enum class piuttosto che una enum semplice per modellare lo stato di un thread e la sua tipologia */
 		enum class task_state {PENDING, IDLE, RUNNING};
-		
+		enum class task_type {PERIODIC, APERIODIC};
+
 		struct task_data
 		{
 			std::function<void()> function;
@@ -64,6 +69,9 @@ class Executive
 
 			/* Ogni task ha uno stato associato */
 			task_state state = task_state::IDLE;
+
+			/* Teniamo anche traccia della tipologia del task */
+			task_type type;
 		};
 		
 		std::vector<task_data> p_tasks;
@@ -86,11 +94,11 @@ class Executive
 		 */
 		std::vector<unsigned int> slack_times;
 
-		static void task_function(task_data & task);
-		
-		/* true se c'e' stata una richiesta di attivazione del task aperiodico */
+		/* Booleano settato a true se c'e' stata una richiesta di attivazione del task aperiodico */
 		bool ap_request;
-		
+
+		static void task_function(task_data & task);
+
 		void exec_function();
 };
 

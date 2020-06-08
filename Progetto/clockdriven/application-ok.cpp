@@ -1,9 +1,13 @@
+/* Vetere Francesco (matricola 313336)
+   Tonazzini Lorenzo (matricola 314498)
+*/
+
 #include <iostream>
 
 #include "executive.h"
 #include "busy_wait.h"
 
-/* Riporta la sitazione nel pdf di esempio (caso nominale) */
+/* Riportiamo la sitazione nel pdf di esempio (caso nominale) */
 
 Executive exec(5, 4);
 
@@ -42,7 +46,7 @@ void task3()
 	busy_wait((wcet[3]*fact) / 2);
 
 	/* Richiede all'executive di eseguire un aperiodico, che devo avere settato nel main
-	   verrà eseguito a partire dal frame successivo 
+	   Verrà poi eseguito a partire dal frame successivo, se possibile 
 	*/
 	if(++count % 2 == 0)
 		exec.ap_task_request(); 

@@ -1,3 +1,7 @@
+/* Vetere Francesco (matricola 313336)
+   Tonazzini Lorenzo (matricola 314498)
+*/
+
 #ifndef BUSY_WAIT
 #define BUSY_WAIT
 

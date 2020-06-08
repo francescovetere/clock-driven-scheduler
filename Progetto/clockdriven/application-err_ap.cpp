@@ -1,9 +1,13 @@
+/* Vetere Francesco (matricola 313336)
+   Tonazzini Lorenzo (matricola 314498)
+*/
+
 #include <iostream>
 
 #include "executive.h"
 #include "busy_wait.h"
 
-/* Riporta la sitazione nel pdf di esempio, in cui pero' il task aperiodico e' richiesto dal task 1 (qui avente indice 0) 
+/* Riportiamo la sitazione nel pdf di esempio, in cui pero' il task aperiodico e' richiesto dal task 1 (qui avente indice 0) 
    Questo porta l'aperiodico ad essere eseguito troppe volte, in particolare capitano dei suoi rilasci nonostante precedenti sue esecuzioni
    non siano ancora terminate (deadline miss) */
 
@@ -23,7 +27,7 @@ void task0()
 	busy_wait((wcet[0]*fact) / 2);
 
 	/* Richiede all'executive di eseguire un aperiodico, che devo avere settato nel main
-	   verrà eseguito a partire dal frame successivo 
+	   Verrà poi eseguito a partire dal frame successivo, se possibile 
 	*/
 	if(++count % 2 == 0)
 		exec.ap_task_request(); 

@@ -1,3 +1,7 @@
+/* Vetere Francesco (matricola 313336)
+   Tonazzini Lorenzo (matricola 314498)
+*/
+
 #include "busy_wait.h"
 
 #include <chrono>

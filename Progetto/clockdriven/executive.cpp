@@ -1,3 +1,7 @@
+/* Vetere Francesco (matricola 313336)
+   Tonazzini Lorenzo (matricola 314498)
+*/
+
 #include <cassert>
 #include <iostream>
 #include <chrono>
@@ -40,6 +44,7 @@ void Executive::add_frame(std::vector<size_t> frame) {
 	
 	/* Lo slack time per questo frame sara' dato dalla differenza tra la lunghezza del frame e il wcet totale */
 	unsigned int slack;
+	
 	if(frame_length > tot_wcet) slack = frame_length - tot_wcet;
 	else slack = 0;
 
@@ -54,16 +59,16 @@ void Executive::run() {
 	// L'executive deve essere gestito da un thread a priorita' massima
 	rt::priority prio_exec(rt::priority::rt_max);
 
-	// Il task aperiodico deve essere gestito da un thread a priorita' minima (+ 1, per stare comunque davanti a eventuali task in )
+	// Il task aperiodico deve essere gestito da un thread a priorita' minima (+ 1, per stare comunque davanti a eventuali task in deadline miss!)
 	rt::priority prio_aperiodic(rt::priority::rt_min + 1);
 
 	/* --- Creiamo i thread per i task periodici --- */
-	for (size_t id = 0; id < p_tasks.size(); ++id)
-	{
+	for (size_t id = 0; id < p_tasks.size(); ++id) {
 		assert(p_tasks[id].function); // Fallisce se set_periodic_task() non e' stato invocato per questo id
 	
 		p_tasks[id].thread = std::thread(&Executive::task_function, std::ref(p_tasks[id]));
-		
+		p_tasks[id].type = task_type::PERIODIC;
+
 		/* ... */
 		
 		// Assegniamo ad ogni thread periodico il valore di affinity precedentemente dichiarato
@@ -75,16 +80,20 @@ void Executive::run() {
 	assert(ap_task.function); // Fallisce se set_aperiodic_task() non e' stato invocato
 	
 	ap_task.thread = std::thread(&Executive::task_function, std::ref(ap_task));
-	
+	ap_task.type = task_type::APERIODIC;
+
 	rt::set_affinity(ap_task.thread, affinity);
 
 	try {
+		// Assegniamo all'aperiodico la priorita' precedentemente dichiarata
 		rt::set_priority(ap_task.thread, prio_aperiodic);
 	}
 	catch (rt::permission_error & e) {
 		std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-		// ap_task.thread.detach();
-		throw;
+		for(unsigned int i = 0; i < p_tasks.size(); ++i) p_tasks[i].thread.detach();
+		ap_task.thread.detach();
+		// termino forzatamente il programma
+		abort(); 
 	}
 
 	
@@ -97,12 +106,13 @@ void Executive::run() {
 	}
 	catch (rt::permission_error & e) {
 		std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-		// exec_thread.detach();
-		throw;
+		for(unsigned int i = 0; i < p_tasks.size(); ++i) p_tasks[i].thread.detach();
+		ap_task.thread.detach();
+		abort();
 	}
 
 	rt::set_affinity(exec_thread, affinity);
-	
+
 
 	/* ... */
 	
@@ -122,14 +132,14 @@ void Executive::ap_task_request() {
 void Executive::task_function(Executive::task_data & task) {
 	while(true) {
 		{	
-			// Creiamo un blocco per sfruttare l'idioma RAII
 			std::unique_lock<std::mutex> lock(task.mutex);
 
 			if(task.state != task_state::PENDING)
 				task.state = task_state::IDLE;
 
-			// Serve solamente per il task aperiodico, in tutti gli altri casi non avra' effetto (overhead minimo)
-			task.condition.notify_one();
+			// notify_one che serve solamente per il task aperiodico, per liberarlo dalla wait_until
+			if(task.type == task_type::APERIODIC) 
+				task.condition.notify_one();
 
 			// Il task attende la ricezione di una notify_one per essere posto in esecuzione
 			while(task.state != task_state::PENDING)
@@ -152,8 +162,6 @@ void Executive::exec_function() {
 	/* Frame corrente */
 	unsigned int frame_id = 0;
 	unsigned int hyperperiod_id = 0;
-
-	// for(unsigned int i = 0; i < slack_times.size(); ++i) std::cout << "slack[" << i << "] = " << slack_times[i] << std::endl;
 
 	/* ... */
 
@@ -191,8 +199,9 @@ void Executive::exec_function() {
 					
 						catch (rt::permission_error & e) {
 							std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-							// p_tasks[task_id].thread.detach();
-							throw;
+							for(unsigned int i = 0; i < p_tasks.size(); ++i) p_tasks[i].thread.detach();
+							ap_task.thread.detach();
+							abort();
 						}
 					}
 				}
@@ -222,12 +231,12 @@ void Executive::exec_function() {
 		{		
 				size_t task_id = (frames[frame_id])[i];
 				
-				// Lascio uno slot di priorita' libero per l'eventuale aperiodico, di modo che possa assumere priorita'
+				// Lascio uno slot di priorita' libero per l'eventuale aperiodico, in modo che possa assumere priorita'
 				// superiore a tutti gli altri periodici, per poter fare slack stealing
 				rt::priority prio_periodic(rt::priority::rt_max - i - 2);
 
 				if(deadlines[task_id]) {
-					deadlines[task_id] = false; // reset della deadline (ovvero permetto successive esecuzioni)
+					deadlines[task_id] = false; // reset della deadline miss (ovvero permetto successive esecuzioni)
 					std::cerr << "Task " << task_id <<": not executed because of a previous deadline miss" << std::endl;
 				}
 
@@ -244,8 +253,9 @@ void Executive::exec_function() {
 				
 					catch (rt::permission_error & e) {
 						std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-						// p_tasks[task_id].thread.detach();
-						throw;
+						for(unsigned int i = 0; i < p_tasks.size(); ++i) p_tasks[i].thread.detach();
+						ap_task.thread.detach();
+						abort();
 					}
 					
 					p_tasks[task_id].condition.notify_one();
@@ -261,14 +271,15 @@ void Executive::exec_function() {
 				
 			catch (rt::permission_error & e) {
 				std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-				// ap_task.thread.detach();
-				throw;
+				for(unsigned int i = 0; i < p_tasks.size(); ++i) p_tasks[i].thread.detach();
+				ap_task.thread.detach();
+				abort();
 			}
 
 			{
 				std::unique_lock<std::mutex> lock(ap_task.mutex);
 				
-				// Si blocca al piu' fino a che dura lo slack time, ma se riceve una notify allora si sveglia prima!
+				// Si blocca al piu' fino a che dura lo slack time, ma se riceve una notify_one allora si sveglia prima!
 				ap_task.condition.wait_until(lock, wakeup + (slack_times[frame_id])*(unit_time));
 			}
 
@@ -278,8 +289,9 @@ void Executive::exec_function() {
 				
 			catch (rt::permission_error & e) {
 				std::cerr << "Error setting RT priorities: " << e.what() << std::endl;
-				// ap_task.thread.detach();
-				throw;
+				for(unsigned int i = 0; i < p_tasks.size(); ++i) p_tasks[i].thread.detach();
+				ap_task.thread.detach();
+				abort();
 			}
 		}
 
