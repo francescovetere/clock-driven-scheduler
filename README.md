@@ -1,5 +1,6 @@
 # clock-driven-scheduler
 This repository contains the final project for the course "Real Time Operating Systems" of the Master's Degree in Computer Engineering.
+
 The software contained is written in C++, and it simulates the behaviour of a clock driven scheduler.
 See the related [PDF document](https://github.com/francescovetere/clock-driven-scheduler/edit/master/clock-driven-scheduler.pdf) to fully understand how it works.
 
