@@ -11,4 +11,5 @@ $ sudo ./application-ok
 
 # Contributor(s)
 Francesco Vetere <<francescovetere1997@gmail.com>>
+
 Lorenzo Tonazzini <<https://github.com/lorenzotonazzini>>
